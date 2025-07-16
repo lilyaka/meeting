@@ -1,0 +1,29 @@
+extend type Query {
+    getAttendeeByMeetingId(id:String!,pageable:Pageable):MeetingAttendeeConnection
+}
+
+extend type Mutation {
+    updateAttendee(id: String!, participate: Boolean, reason: String): String
+    updateAttendeeByUserId(meetingId: String!, participate: Boolean, reason: String): Boolean
+}
+
+type MeetingAttendee{
+    id: String
+    meetingId:String
+    userId: String
+    isHost: Boolean
+    seen: Boolean
+    seenTime: DateTime
+    participate: Boolean
+    reason: String
+}
+type MeetingAttendeeConnection {
+    totalCount: Int!
+    pageInfo: PageInfo!
+    edges: [MeetingAttendeeEdge]
+}
+
+type MeetingAttendeeEdge {
+    cursor: String!
+    node: MeetingAttendee
+}

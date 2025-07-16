@@ -1,0 +1,16 @@
+type FileAttachment {
+    id: ID!
+    objectId: ID
+    objectType: FileTypes
+    extension: String
+    name: String
+    path: String
+    size: Int
+    isDeleted: Boolean
+}
+
+enum FileTypes {
+    ROOM_PHOTO,
+    DOCUMENTS_PREPARED,
+    REPORT_DOCUMENTS
+}

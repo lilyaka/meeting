@@ -1,0 +1,91 @@
+type Query{
+    getMeetingById(id:String!): Meeting
+    viewDetail(id:String!): Meeting
+    listMeetingByStartEnd(startDate: Date!, endDate: Date!, isConfig: Boolean): [Meeting]
+    findAllByProjectIdAndIsDeletedFalse(startDate: Date!, endDate: Date!, projectId: String): [Meeting]
+}
+type Mutation{
+    updateStatusMeeting(id:String!,status:StatusMeetingEnum!): Meeting
+    deleteMeeting(id: String!): Boolean
+}
+
+type Meeting{
+    id: String
+    content: String
+    startTime: DateTime
+    endTime: DateTime
+    hostId: String
+    roomId: String
+    meetingType: MeetingType
+    onlineUrl: String
+    repeat: String
+    isDeleted: Boolean
+    isBase: Boolean
+    cronConfig: String
+    departmentIds: [String]
+    mediaDeviceIds: [String]
+    guest: String
+    setup: String
+    note: String
+    isImportant: Boolean
+    isPrivate: Boolean
+    status:StatusMeetingEnum
+    numberAttendees:Int
+    fileAttachments: [FileAttachment]
+    attendees: [MeetingAttendee]
+    meetingRoom: MeetingRoom,
+    isConflict: Boolean,
+    conflictMeetings: [Meeting],
+    createdTime: DateTime,
+    createdBy: String
+    organizations: [Organization]
+    projectId: String
+    remind: Int
+    remindTimeType: RemindTimeType
+    remindType: RemindType
+}
+input MeetingInput{
+    id: String
+    content: String
+    startTime: DateTime
+    endTime: DateTime
+    hostId: String
+    attendeeIds: [String]
+    meetingRoom: String
+    meetingType: MeetingType
+    onlineUrl: String
+    departmentIds: [String]
+    mediaDeviceIds: [String]
+    setup: String
+    note: String
+    isImportant: Boolean
+    isPrivate: Boolean = false
+    periodDays:Int
+    numberAttendees:Int
+    projectId: String
+    remind: Int
+    remindTimeType: RemindTimeType
+    remindType: RemindType
+}
+
+enum StatusMeetingEnum {
+    DRAFT ,
+    PENDING ,
+    GIVE_BACK ,
+    REFUSE ,
+    APPROVED ,
+    CANCEL
+}
+
+
+enum MeetingType {
+    ONLINE, OFFLINE, ONLINE_OFFLINE
+}
+
+enum RemindTimeType {
+    MINUTE ,HOUR ,DAY
+}
+
+enum RemindType {
+    NOTIFICATION ,EMAIL ,ALL
+}

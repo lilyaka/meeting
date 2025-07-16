@@ -1,0 +1,32 @@
+extend type Query{
+    getMediaDeviceById(id: String!): MediaDevice
+    getAllActiveMediaDevices: [MediaDevice]
+    searchTextMediaDevice(keyword: String, pageable: Pageable) : MediaDeviceConnection
+    maxNOrderMediaDevice: Int
+}
+
+extend type Mutation {
+    deleteMediaDevice(id: String!): Boolean
+}
+
+type MediaDevice {
+    id: String
+    name: String
+    status: MeetingRoomStatus
+    mediaOrDevice: Boolean
+    description: String,
+    isDeleted: Boolean,
+    norder: Int,
+    images: [FileAttachment]
+}
+
+type MediaDeviceConnection {
+    totalCount: Int!
+    pageInfo: PageInfo!
+    edges: [MediaDeviceEdge]
+}
+
+type MediaDeviceEdge {
+    cursor: String!
+    node: MediaDevice
+}
