@@ -1,10 +1,10 @@
 package com.revotech.meetingservice.business.meeting.model
 
-import com.revotech.dto.IServiceTaskPayload
-
-data class ServiceTaskPayload(
+data class MeetingReminderTaskPayload(
     val taskType: String,
     val service: String,
     val endpoint: String,
     val cronExpression: String,
-) : IServiceTaskPayload
+    val meetingId: String,
+    val remindMinutes: Int
+)

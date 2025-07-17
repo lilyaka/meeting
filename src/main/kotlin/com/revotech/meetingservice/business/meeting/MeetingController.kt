@@ -4,6 +4,8 @@ import com.revotech.meetingservice.business.meeting.dto.ExportMeetingRequestDTO
 import com.revotech.meetingservice.business.meeting.dto.MeetingDTO
 import com.revotech.meetingservice.business.meeting.model.Meeting
 import com.revotech.meetingservice.business.meeting.model.MeetingStatusPayload
+import com.revotech.meetingservice.event.NotificationMeetingService
+import com.revotech.util.WebUtil
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -15,7 +17,9 @@ const val MEETING_ENDPOINT = "/meeting"
 @RequestMapping(MEETING_ENDPOINT)
 class MeetingController(
     private val meetingService: MeetingService,
-    private val scheduledMeetingTask: ScheduledMeetingTask
+    private val scheduledMeetingTask: ScheduledMeetingTask,
+    private val notificationMeetingService: NotificationMeetingService,
+    private val webUtil: WebUtil
 ) {
     @GetMapping("/{id}")
     fun getMeeting(@PathVariable id: String): Meeting {
@@ -23,8 +27,7 @@ class MeetingController(
     }
 
     @GetMapping
-    fun getAllMeeting(
-    ): List<Meeting> {
+    fun getAllMeeting(): List<Meeting> {
         return meetingService.getAllMeeting()
     }
 
@@ -46,6 +49,18 @@ class MeetingController(
     @PostMapping("/schedule")
     fun schedule(): String {
         scheduledMeetingTask.createMeeting()
+        return "OK"
+    }
+
+    // ✅ THÊM ENDPOINT MISSING
+    @PostMapping("/reminder/{id}")
+    fun sendMeetingReminder(@PathVariable id: String): String {
+        val meeting = meetingService.getMeetingById(id)
+        notificationMeetingService.sendMeetingNotification(
+            meeting,
+            webUtil.getTenantId(),
+            webUtil.getUserId()
+        )
         return "OK"
     }
 

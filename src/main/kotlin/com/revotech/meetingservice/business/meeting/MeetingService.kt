@@ -3,6 +3,7 @@ package com.revotech.meetingservice.business.meeting
 import com.revotech.ExcelUtils
 import com.revotech.client.AdminServiceClient
 import com.revotech.client.WorkServiceClient
+import com.revotech.client.ScheduleServiceClient
 import com.revotech.dto.Organization
 import com.revotech.dto.UserMoreInfoResponse
 import com.revotech.meetingservice.business.file_attachment.model.FileType
@@ -37,9 +38,11 @@ class MeetingService(
     private val taskScheduler: TaskScheduler,
     private val notificationMeetingService: NotificationMeetingService,
     private val workServiceClient: WorkServiceClient,
+    private val scheduleServiceClient: ScheduleServiceClient,
 ) {
 
     private val log = LoggerFactory.getLogger(this.javaClass)
+
     fun createMeeting(meetingDTO: MeetingDTO): Meeting {
         checkConfirmed(meetingDTO)
 
@@ -101,7 +104,6 @@ class MeetingService(
 
             else -> return
         }
-
 
         meetingsToCreate.forEach {
             val meeting = meetingRepository.save(Meeting(it))
@@ -180,10 +182,120 @@ class MeetingService(
                 this.status = status
             }.let {
                 if (status == StatusMeetingEnum.APPROVED) {
-                    sendNotiBeforeMeeting(id)
+                    scheduleReminderTask(it)
                 }
                 meetingRepository.save(it)
             }
+    }
+
+    // ✅ NEW: Schedule reminder task thông qua Schedule service
+    private fun scheduleReminderTask(meeting: Meeting) {
+        val remind = meeting.remind ?: return
+        if (remind <= 0) return
+
+        try {
+            val reminderTime = when (meeting.remindTimeType) {
+                RemindTimeType.MINUTE -> meeting.startTime.minusMinutes(remind.toLong())
+                RemindTimeType.HOUR -> meeting.startTime.minusHours(remind.toLong())
+                RemindTimeType.DAY -> meeting.startTime.minusDays(remind.toLong())
+                else -> return
+            }
+
+            // Kiểm tra thời gian nhắc nhở không được trong quá khứ
+            if (reminderTime.isBefore(LocalDateTime.now())) {
+                log.warn("Reminder time is in the past for meeting ${meeting.id}")
+                return
+            }
+
+            // Tạo cron expression cho thời điểm nhắc nhở
+            val cronExpression = createCronExpression(reminderTime)
+
+            val taskPayload = ServiceTaskPayload(
+                taskType = "MEETING_REMINDER_${meeting.id}",
+                service = "meeting-service",
+                endpoint = "/meeting/reminder/${meeting.id}",
+                cronExpression = cronExpression
+            )
+
+            scheduleServiceClient.registerServiceTask(taskPayload)
+
+            log.info("Scheduled reminder for meeting ${meeting.id} at $reminderTime")
+
+        } catch (e: Exception) {
+            log.warn("Failed to schedule reminder task for meeting ${meeting.id}", e)
+        }
+    }
+
+    // ✅ NEW: Test method để kiểm tra notification
+    fun testSendNotification(meetingId: String): Map<String, Any?> {
+        log.info("Testing notification for meeting: $meetingId")
+
+        val meeting = meetingRepository.findById(meetingId).orElseThrow {
+            MeetingException("MeetingNotFound", "Meeting not found: $meetingId")
+        }
+
+        log.info("Meeting found: ${meeting.content}")
+        log.info("Meeting status: ${meeting.status}")
+        log.info("Meeting remind: ${meeting.remind}")
+        log.info("Meeting remindTimeType: ${meeting.remindTimeType}")
+
+        val attendees = meetingAttendeeService.getListAttendeesByMeetingId(meetingId)
+        log.info("Found ${attendees.size} attendees")
+
+        attendees.forEach { attendee ->
+            log.info("Attendee: ${attendee.userId}, isHost: ${attendee.isHost}")
+        }
+
+        // Test gửi thông báo
+        try {
+            notificationMeetingService.sendMeetingNotification(
+                meeting,
+                webUtil.getTenantId(),
+                meeting.hostId
+            )
+            log.info("Notification sent successfully")
+
+            return mapOf(
+                "success" to true,
+                "meetingId" to meetingId,
+                "meetingContent" to meeting.content,
+                "meetingStatus" to meeting.status.name,
+                "attendeeCount" to attendees.size,
+                "attendees" to attendees.map { mapOf(
+                    "userId" to it.userId,
+                    "isHost" to it.isHost
+                ) },
+                "tenantId" to webUtil.getTenantId(),
+                "hostId" to meeting.hostId,
+                "remind" to meeting.remind,
+                "remindTimeType" to meeting.remindTimeType?.name
+            )
+        } catch (e: Exception) {
+            log.error("Failed to send notification", e)
+            throw e
+        }
+    }
+
+    // ✅ NEW: Tạo cron expression từ LocalDateTime
+    private fun createCronExpression(dateTime: LocalDateTime): String {
+        return "${dateTime.second} ${dateTime.minute} ${dateTime.hour} ${dateTime.dayOfMonth} ${dateTime.monthValue} ?"
+    }
+
+    // ✅ NEW: Method để Schedule service gọi để gửi reminder
+    fun sendMeetingReminder(meetingId: String) {
+        try {
+            val meeting = meetingRepository.findById(meetingId).orElse(null) ?: return
+
+            if (meeting.status == StatusMeetingEnum.APPROVED) {
+                notificationMeetingService.sendMeetingNotification(
+                    meeting,
+                    webUtil.getTenantId(),
+                    meeting.hostId
+                )
+            }
+        } catch (e: Exception) {
+            log.error("Failed to send meeting reminder for meeting $meetingId", e)
+        }
     }
 
     private fun sendNotiBeforeMeeting(id: String) {
@@ -205,7 +317,6 @@ class MeetingService(
             ), startTime.atZone(ZoneId.systemDefault()).toInstant()
         )
     }
-
 
     fun findConflictMeeting(roomId: String): List<Meeting> {
         return meetingRepository.findConflictMeeting(roomId)
@@ -272,7 +383,6 @@ class MeetingService(
         data["list"] = sortedGroupByDay
         data["startDate"] = request.startDate
         data["endDate"] = request.endDate
-
 
         data["tenant"] = "Tenant"
         data["address"] = "Address"
@@ -399,10 +509,4 @@ class MeetingService(
             projectId
         )
     }
-
-//    @PostConstruct
-//    fun postConstruct(){
-//        SpringScriptUtility.runScript()
-//    }
-
 }
