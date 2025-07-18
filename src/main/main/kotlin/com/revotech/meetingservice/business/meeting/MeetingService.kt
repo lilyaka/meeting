@@ -20,6 +20,7 @@ import com.revotech.util.WebUtil
 import jakarta.transaction.Transactional
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
+import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Service
 import java.time.*
 import java.time.temporal.TemporalAdjusters
@@ -213,7 +214,7 @@ class MeetingService(
             val taskPayload = ServiceTaskPayload(
                 taskType = "MEETING_REMINDER_${meeting.id}",
                 service = "meeting-service",
-                endpoint = "/meeting/reminder/${meeting.id}",
+                endpoint = "meeting/reminder/${meeting.id}",
                 cronExpression = cronExpression
             )
 
@@ -226,59 +227,41 @@ class MeetingService(
         }
     }
 
-    // ✅ NEW: Test method để kiểm tra notification
-    fun testSendNotification(meetingId: String): Map<String, Any?> {
-        log.info("Testing notification for meeting: $meetingId")
-
-        val meeting = meetingRepository.findById(meetingId).orElseThrow {
-            MeetingException("MeetingNotFound", "Meeting not found: $meetingId")
-        }
-
-        log.info("Meeting found: ${meeting.content}")
-        log.info("Meeting status: ${meeting.status}")
-        log.info("Meeting remind: ${meeting.remind}")
-        log.info("Meeting remindTimeType: ${meeting.remindTimeType}")
-
-        val attendees = meetingAttendeeService.getListAttendeesByMeetingId(meetingId)
-        log.info("Found ${attendees.size} attendees")
-
-        attendees.forEach { attendee ->
-            log.info("Attendee: ${attendee.userId}, isHost: ${attendee.isHost}")
-        }
-
-        // Test gửi thông báo
-        try {
-            notificationMeetingService.sendMeetingNotification(
-                meeting,
-                webUtil.getTenantId(),
-                meeting.hostId
-            )
-            log.info("Notification sent successfully")
-
-            return mapOf(
-                "success" to true,
-                "meetingId" to meetingId,
-                "meetingContent" to meeting.content,
-                "meetingStatus" to meeting.status.name,
-                "attendeeCount" to attendees.size,
-                "attendees" to attendees.map { mapOf(
-                    "userId" to it.userId,
-                    "isHost" to it.isHost
-                ) },
-                "tenantId" to webUtil.getTenantId(),
-                "hostId" to meeting.hostId,
-                "remind" to meeting.remind,
-                "remindTimeType" to meeting.remindTimeType?.name
-            )
-        } catch (e: Exception) {
-            log.error("Failed to send notification", e)
-            throw e
-        }
-    }
-
     // ✅ NEW: Tạo cron expression từ LocalDateTime
     private fun createCronExpression(dateTime: LocalDateTime): String {
-        return "${dateTime.second} ${dateTime.minute} ${dateTime.hour} ${dateTime.dayOfMonth} ${dateTime.monthValue} ?"
+        val now = LocalDateTime.now()
+
+        log.info("=== CRON CREATION DEBUG ===")
+        log.info("Target time: $dateTime")
+        log.info("Current time: $now")
+        log.info("System timezone: ${ZoneId.systemDefault()}")
+
+        // Validation
+        if (dateTime.year != now.year) {
+            log.warn("⚠️ Different year: target=${dateTime.year}, current=${now.year}")
+        }
+
+        if (dateTime.isBefore(now)) {
+            log.warn("⚠️ Time in past: $dateTime")
+        }
+
+        val cron = "${dateTime.second} ${dateTime.minute} ${dateTime.hour} ${dateTime.dayOfMonth} ${dateTime.monthValue} ?"
+        log.info("Generated cron: $cron")
+
+        // ✅ TEST CRON EXPRESSION
+        try {
+            val cronExpr = CronExpression.parse(cron)
+            val nextRun = cronExpr.next(now)
+            log.info("✅ Next execution: $nextRun")
+
+            if (nextRun == null) {
+                log.error("❌ Cron will never execute!")
+            }
+        } catch (e: Exception) {
+            log.error("❌ Invalid cron expression: $cron", e)
+        }
+
+        return cron
     }
 
     // ✅ NEW: Method để Schedule service gọi để gửi reminder

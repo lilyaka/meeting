@@ -1,0 +1,36 @@
+extend type Query{
+    getMeetingRoomById(id: String!): MeetingRoom
+    getAllActiveMeetingRooms: [MeetingRoom]
+    searchTextMeetingRoom(keyword: String, pageable: Pageable) : MeetingRoomConnection
+    maxNOrderMeetingRoom: Int
+}
+
+extend type Mutation {
+    deleteMeetingRoom(id: String!): Boolean
+}
+
+type MeetingRoom {
+    id: String
+    name: String
+    status: MeetingRoomStatus
+    address: String,
+    isDeleted: Boolean,
+    norder: Int,
+    images: [FileAttachment]
+}
+
+type MeetingRoomConnection {
+    totalCount: Int!
+    pageInfo: PageInfo!
+    edges: [MeetingRoomEdge]
+}
+
+type MeetingRoomEdge {
+    cursor: String!
+    node: MeetingRoom
+}
+
+enum MeetingRoomStatus {
+    ACTIVE,
+    DEACTIVATE
+}
